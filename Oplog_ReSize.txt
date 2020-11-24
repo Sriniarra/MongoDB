@@ -1,0 +1,54 @@
+Resizing the Oplog
+Your primary’s oplog should be thought of as your maintenance window. If your primary has an oplog that is an hour long, then you only have one hour to fix anything that goes wrong before your secondaries fall too far behind and must be resynced from scratch. Thus, you generally want to have an oplog that can hold a couple days to a week’s worth of data, to give yourself some breathing room if something goes wrong.
+
+Unfortunately, there’s no easy way to tell how long your oplog is going to be before it fills up and there’s no way to resize it while your server is running. However, it is possible to cycle through your servers, taking each one offline, making its oplog larger, and then adding it back into the set. Remember that each server that could become a primary should have a large enough oplog to give you a sane maintenance window.
+
+To increase the size of your oplog, perform the following steps:
+
+If this is currently the primary, step it down and wait for the other servers to catch up.
+
+Shut down the server.
+
+Start it up as a standalone server.
+
+Temporarily store the last insert in the oplog in another collection:
+
+> use local
+> // op: "i" finds the last insert
+> var cursor = db.oplog.rs.find({"op" : "i"})
+> var lastInsert = cursor.sort({"$natural" : -1}).limit(1).next()
+> db.tempLastOp.save(lastInsert)
+>
+> // make sure it was saved! It's very important that you don't lose this op
+> db.tempLastOp.findOne()
+We could use the last update or delete, but $-operators cannot be inserted into a collection.
+
+Drop the current oplog:
+
+> db.oplog.rs.drop()
+Create a new oplog:
+
+> db.createCollection("oplog.rs", {"capped" : true, "size" : 10000})
+Put the last op back in the oplog:
+
+> var temp = db.tempLastOp.findOne()
+> db.oplog.rs.insert(temp)
+>
+> // make sure that this was actually inserted
+> db.oplog.rs.findOne()
+Make sure that the last op was inserted into the oplog. If it was not, the server will drop all of its data and resync when you add it back into the set.
+
+Finally, restart the server as a member of the replica set. Remember that it only has one op in the oplog to start out with, so you won’t be able to see its true oplog length (how long it is in time) for a while. Also, it won’t be a very good sync source if other members are behind.
+
+You generally should not decrease the size of your oplog: although it may be months long, there is usually ample disk space for it and it does not use up any valuable resources like RAM or CPU.
+
+db.getSiblingDB("local").oplog.rs.stats(1024*1024).maxSize
+
+db.adminCommand({ "replSetResizeOplog": 1, size: 16384})
+
+my-cluster:PRIMARY> db.adminCommand({ "replSetResizeOplog": 1, size: 4096})
+cnoc-cluster:PRIMARY> db.getSiblingDB("local").oplog.rs.stats(1024*1024).maxSize
+4096
+my-cluster:PRIMARY>
+my-cluster:PRIMARY> rs.printReplicationInfo()
+configured oplog size:   4096MB
