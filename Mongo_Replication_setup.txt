@@ -1,0 +1,370 @@
+###########################################################################################
+Replication setup:
+==========================
+
+
+vagrant@m103:/var/mongodb$ cat mongod-repl-1.conf
+storage:
+  dbPath: "/var/mongodb/db/1"
+net:
+  bindIp: "127.0.0.1,192.168.103.100"
+  port: 27001
+security:
+  authorization: "enabled"
+  keyFile: "/var/mongodb/pki/m103-keyfile"
+systemLog:
+  destination: file
+  path: "/var/mongodb/db/mongod1.log"
+  logAppend: true
+processManagement:
+  fork: true
+replication:
+  replSetName: "m103-repl"
+
+
+
+vagrant@m103:/var/mongodb$ vi mongod-repl-1.conf
+vagrant@m103:/var/mongodb$ mongod -f mongod-repl-1.conf
+about to fork child process, waiting until server is ready for connections.
+forked process: 2396
+child process started successfully, parent exiting
+vagrant@m103:/var/mongodb$
+
+vagrant@m103:/var/mongodb$ cp mongod-repl-1.conf mongod-repl-2.conf
+vagrant@m103:/var/mongodb$ vi mongod-repl-2.conf
+vagrant@m103:/var/mongodb$ cp mongod-repl-1.conf mongod-repl-3.conf
+vagrant@m103:/var/mongodb$ vi mongod-repl-3.conf
+vagrant@m103:/var/mongodb$ ps -ef | grep mongo
+vagrant   2396     1  1 02:09 ?        00:00:02 mongod -f mongod-repl-1.conf
+vagrant   2458  2026  0 02:13 pts/0    00:00:00 grep --color=auto mongo
+vagrant@m103:/var/mongodb$ mongod -f mongod-repl-2.conf
+about to fork child process, waiting until server is ready for connections.
+forked process: 2461
+child process started successfully, parent exiting
+vagrant@m103:/var/mongodb$ mongod -f mongod-repl-3.conf
+about to fork child process, waiting until server is ready for connections.
+forked process: 2490
+child process started successfully, p
+
+
+vagrant@m103:/var/mongodb$ mongo --port 27001
+MongoDB shell version v3.6.6
+connecting to: mongodb://127.0.0.1:27001/
+MongoDB server version: 3.6.6
+MongoDB Enterprise >
+
+MongoDB Enterprise > rs.initiate()
+{
+        "info2" : "no configuration specified. Using a default configuration for the set",
+        "me" : "192.168.103.100:27001",
+        "ok" : 1
+}
+
+
+
+vagrant@m103:/var/mongodb$ mongo --port 27001
+MongoDB shell version v3.6.6
+connecting to: mongodb://127.0.0.1:27001/
+MongoDB server version: 3.6.6
+MongoDB Enterprise m103-repl:PRIMARY> use admin
+switched to db admin
+MongoDB Enterprise m103-repl:PRIMARY> db.createUser({
+...   user: "m103-admin",
+...   pwd: "m103-pass",
+...   roles: [
+...     {role: "root", db: "admin"}
+...   ]
+... })
+Successfully added user: {
+        "user" : "m103-admin",
+        "roles" : [
+                {
+                        "role" : "root",
+                        "db" : "admin"
+                }
+        ]
+}
+MongoDB Enterprise m103-repl:PRIMARY>
+
+
+
+mongo --host "m103-repl/192.168.103.100:27011" -u "m103-admin" -p "m103-pass" --authenticationDatabase "admin"
+
+
+
+rs.add("m103.mongodb.university:27002")
+rs.add("m103.mongodb.university:27003")
+
+
+
+MongoDB Enterprise m103-repl:PRIMARY> rs.status()
+{
+        "set" : "m103-repl",
+        "date" : ISODate("2018-07-26T02:22:35.866Z"),
+        "myState" : 1,
+        "term" : NumberLong(1),
+        "syncingTo" : "",
+        "syncSourceHost" : "",
+        "syncSourceId" : -1,
+        "heartbeatIntervalMillis" : NumberLong(2000),
+        "optimes" : {
+                "lastCommittedOpTime" : {
+                        "ts" : Timestamp(1532571751, 1),
+                        "t" : NumberLong(1)
+                },
+                "readConcernMajorityOpTime" : {
+                        "ts" : Timestamp(1532571751, 1),
+                        "t" : NumberLong(1)
+                },
+                "appliedOpTime" : {
+                        "ts" : Timestamp(1532571751, 1),
+                        "t" : NumberLong(1)
+                },
+                "durableOpTime" : {
+                        "ts" : Timestamp(1532571751, 1),
+                        "t" : NumberLong(1)
+                }
+        },
+        "members" : [
+                {
+                        "_id" : 0,
+                        "name" : "192.168.103.100:27001",
+                        "health" : 1,
+                        "state" : 1,
+                        "stateStr" : "PRIMARY",
+                        "uptime" : 768,
+                        "optime" : {
+                                "ts" : Timestamp(1532571751, 1),
+                                "t" : NumberLong(1)
+                        },
+                        "optimeDate" : ISODate("2018-07-26T02:22:31Z"),
+                        "syncingTo" : "",
+                        "syncSourceHost" : "",
+                        "syncSourceId" : -1,
+                        "infoMessage" : "",
+                        "electionTime" : Timestamp(1532571330, 2),
+                        "electionDate" : ISODate("2018-07-26T02:15:30Z"),
+                        "configVersion" : 1,
+                        "self" : true,
+                        "lastHeartbeatMessage" : ""
+                }
+        ],
+        "ok" : 1,
+        "operationTime" : Timestamp(1532571751, 1),
+        "$clusterTime" : {
+                "clusterTime" : Timestamp(1532571751, 1),
+                "signature" : {
+                        "hash" : BinData(0,"H+mePm7jPAhaMDmQ+6OazmgAmXk="),
+                        "keyId" : NumberLong("6582343745432190977")
+                }
+        }
+}
+MongoDB Enterprise m103-repl:PRIMARY> rs.add("192.168.103.100:27012")
+{
+        "ok" : 0,
+        "errmsg" : "Quorum check failed because not enough voting nodes responded; required 2 but only the following 1 voting nodes responded: 192.168.103.100:27001; the following nodes did not respond affirmatively: 192.168.103.100:27012 failed with Connection refused",
+        "code" : 74,
+        "codeName" : "NodeNotFound",
+        "operationTime" : Timestamp(1532571861, 1),
+        "$clusterTime" : {
+                "clusterTime" : Timestamp(1532571861, 1),
+                "signature" : {
+                        "hash" : BinData(0,"y1qUnu9txMHTifj0u5q84n2USwk="),
+                        "keyId" : NumberLong("6582343745432190977")
+                }
+        }
+}
+MongoDB Enterprise m103-repl:PRIMARY> rs.add("192.168.103.100:27002")
+{
+        "ok" : 1,
+        "operationTime" : Timestamp(1532571914, 1),
+        "$clusterTime" : {
+                "clusterTime" : Timestamp(1532571914, 1),
+                "signature" : {
+                        "hash" : BinData(0,"EvjP1HdrL87s5L25U1UzqlXHw7Q="),
+                        "keyId" : NumberLong("6582343745432190977")
+                }
+        }
+}
+MongoDB Enterprise m103-repl:PRIMARY> rs.add("192.168.103.100:27003")
+{
+        "ok" : 1,
+        "operationTime" : Timestamp(1532571925, 1),
+        "$clusterTime" : {
+                "clusterTime" : Timestamp(1532571925, 1),
+                "signature" : {
+                        "hash" : BinData(0,"0NAY+nezviMA76IRo1x/s66XUf4="),
+                        "keyId" : NumberLong("6582343745432190977")
+                }
+        }
+}
+MongoDB Enterprise m103-repl:PRIMARY>
+
+
+
+MongoDB Enterprise m103-repl:PRIMARY> rs.status()
+{
+        "set" : "m103-repl",
+        "date" : ISODate("2018-07-26T02:26:01.996Z"),
+        "myState" : 1,
+        "term" : NumberLong(1),
+        "syncingTo" : "",
+        "syncSourceHost" : "",
+        "syncSourceId" : -1,
+        "heartbeatIntervalMillis" : NumberLong(2000),
+        "optimes" : {
+                "lastCommittedOpTime" : {
+                        "ts" : Timestamp(1532571961, 1),
+                        "t" : NumberLong(1)
+                },
+                "readConcernMajorityOpTime" : {
+                        "ts" : Timestamp(1532571961, 1),
+                        "t" : NumberLong(1)
+                },
+                "appliedOpTime" : {
+                        "ts" : Timestamp(1532571961, 1),
+                        "t" : NumberLong(1)
+                },
+                "durableOpTime" : {
+                        "ts" : Timestamp(1532571961, 1),
+                        "t" : NumberLong(1)
+                }
+        },
+        "members" : [
+                {
+                        "_id" : 0,
+                        "name" : "192.168.103.100:27001",
+                        "health" : 1,
+                        "state" : 1,
+                        "stateStr" : "PRIMARY",
+                        "uptime" : 974,
+                        "optime" : {
+                                "ts" : Timestamp(1532571961, 1),
+                                "t" : NumberLong(1)
+                        },
+                        "optimeDate" : ISODate("2018-07-26T02:26:01Z"),
+                        "syncingTo" : "",
+                        "syncSourceHost" : "",
+                        "syncSourceId" : -1,
+                        "infoMessage" : "",
+                        "electionTime" : Timestamp(1532571330, 2),
+                        "electionDate" : ISODate("2018-07-26T02:15:30Z"),
+                        "configVersion" : 3,
+                        "self" : true,
+                        "lastHeartbeatMessage" : ""
+                },
+                {
+                        "_id" : 1,
+                        "name" : "192.168.103.100:27002",
+                        "health" : 1,
+                        "state" : 2,
+                        "stateStr" : "SECONDARY",
+                        "uptime" : 47,
+                        "optime" : {
+                                "ts" : Timestamp(1532571951, 1),
+                                "t" : NumberLong(1)
+                        },
+                        "optimeDurable" : {
+                                "ts" : Timestamp(1532571951, 1),
+                                "t" : NumberLong(1)
+                        },
+                        "optimeDate" : ISODate("2018-07-26T02:25:51Z"),
+                        "optimeDurableDate" : ISODate("2018-07-26T02:25:51Z"),
+                        "lastHeartbeat" : ISODate("2018-07-26T02:26:00.004Z"),
+                        "lastHeartbeatRecv" : ISODate("2018-07-26T02:26:01.048Z"),
+                        "pingMs" : NumberLong(0),
+                        "lastHeartbeatMessage" : "",
+                        "syncingTo" : "192.168.103.100:27001",
+                        "syncSourceHost" : "192.168.103.100:27001",
+                        "syncSourceId" : 0,
+                        "infoMessage" : "",
+                        "configVersion" : 3
+                },
+                {
+                        "_id" : 2,
+                        "name" : "192.168.103.100:27003",
+                        "health" : 1,
+                        "state" : 2,
+                        "stateStr" : "SECONDARY",
+                        "uptime" : 36,
+                        "optime" : {
+                                "ts" : Timestamp(1532571951, 1),
+                                "t" : NumberLong(1)
+                        },
+                        "optimeDurable" : {
+                                "ts" : Timestamp(1532571951, 1),
+                                "t" : NumberLong(1)
+                        },
+                        "optimeDate" : ISODate("2018-07-26T02:25:51Z"),
+                        "optimeDurableDate" : ISODate("2018-07-26T02:25:51Z"),
+                        "lastHeartbeat" : ISODate("2018-07-26T02:26:00.003Z"),
+                        "lastHeartbeatRecv" : ISODate("2018-07-26T02:26:00.589Z"),
+                        "pingMs" : NumberLong(0),
+                        "lastHeartbeatMessage" : "",
+                        "syncingTo" : "192.168.103.100:27001",
+                        "syncSourceHost" : "192.168.103.100:27001",
+                        "syncSourceId" : 0,
+                        "infoMessage" : "",
+                        "configVersion" : 3
+                }
+        ],
+        "ok" : 1,
+        "operationTime" : Timestamp(1532571961, 1),
+        "$clusterTime" : {
+                "clusterTime" : Timestamp(1532571961, 1),
+                "signature" : {
+                        "hash" : BinData(0,"Y5e380Rkb5D4KPzDcvE2ql6zqLA="),
+                        "keyId" : NumberLong("6582343745432190977")
+                }
+        }
+}
+
+
+
+
+==================================================================
+MongoDB Enterprise m103-repl:PRIMARY> rs.isMaster()
+{
+        "hosts" : [
+                "192.168.103.100:27001",
+                "192.168.103.100:27002",
+                "192.168.103.100:27003"
+        ],
+        "setName" : "m103-repl",
+        "setVersion" : 3,
+        "ismaster" : true,
+        "secondary" : false,
+        "primary" : "192.168.103.100:27001",
+        "me" : "192.168.103.100:27001",
+        "electionId" : ObjectId("7fffffff0000000000000001"),
+        "lastWrite" : {
+                "opTime" : {
+                        "ts" : Timestamp(1532573512, 1),
+                        "t" : NumberLong(1)
+                },
+                "lastWriteDate" : ISODate("2018-07-26T02:51:52Z"),
+                "majorityOpTime" : {
+                        "ts" : Timestamp(1532573512, 1),
+                        "t" : NumberLong(1)
+                },
+                "majorityWriteDate" : ISODate("2018-07-26T02:51:52Z")
+        },
+        "maxBsonObjectSize" : 16777216,
+        "maxMessageSizeBytes" : 48000000,
+        "maxWriteBatchSize" : 100000,
+        "localTime" : ISODate("2018-07-26T02:52:00.408Z"),
+        "logicalSessionTimeoutMinutes" : 30,
+        "minWireVersion" : 0,
+        "maxWireVersion" : 6,
+        "readOnly" : false,
+        "ok" : 1,
+        "operationTime" : Timestamp(1532573512, 1),
+        "$clusterTime" : {
+                "clusterTime" : Timestamp(1532573512, 1),
+                "signature" : {
+                        "hash" : BinData(0,"NFO9LHE+EB7Jjhw3iHW01XdaaHI="),
+                        "keyId" : NumberLong("6582343745432190977")
+                }
+        }
+}
+MongoDB Enterprise m103-repl:PRIMARY>
