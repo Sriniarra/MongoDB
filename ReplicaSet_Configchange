@@ -1,0 +1,19 @@
+Assigning the current configuration to a shell variable then  we can edit, in order to reconfigure the replica set:
+
+cfg = rs.conf()
+
+Editing our new variable cfg to change topology - specifically, by modifying cfg.members:
+
+Example below: I am making the replica node 3  to hidden node and priority 0 and votes to 0
+
+cfg.members[3].votes = 0
+cfg.members[3].hidden = true
+cfg.members[3].priority = 0
+
+
+Updating our replica set to use the new configuration cfg:
+
+rs.reconfig(cfg)
+
+
+rs.conf()
